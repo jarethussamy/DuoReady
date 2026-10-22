@@ -1,0 +1,10 @@
+platform :ios, '17.0'
+
+target 'GoodApp' do
+  use_frameworks!
+  use_react_native!(
+    :hermes_enabled => true,
+    :fabric_enabled => true,
+    :newArchEnabled => true
+  )
+end
