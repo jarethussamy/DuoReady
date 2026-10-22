@@ -1,0 +1,8 @@
+# DuoReady — Netlify deploy config for the DuoReady GitHub repo.
+# The public website lives in the website/ folder of the repo.
+# It is a single self-contained static HTML file, so there is
+# nothing to build: Netlify just publishes the folder as-is.
+
+[build]
+  publish = "website"
+  command = ""
