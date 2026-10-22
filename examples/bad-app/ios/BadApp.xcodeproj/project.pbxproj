@@ -1,0 +1,13 @@
+// !$*UTF8*$!
+{
+	objectVersion = 56;
+	objects = {
+		AA0000000000000000000001 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				PRODUCT_NAME = BadApp;
+			};
+		};
+	};
+}
