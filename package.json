@@ -1,0 +1,25 @@
+{
+  "bin": {
+    "duoready": "src/cli.js"
+  },
+  "description": "Source scanner that audits a React / React Native app for iPhone Duo readiness on iOS 27.1.",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "iphone-duo",
+    "ios-27",
+    "react-native",
+    "foldable",
+    "scanner"
+  ],
+  "license": "MIT",
+  "name": "duoready",
+  "private": false,
+  "scripts": {
+    "scan:bad": "node src/cli.js scan examples/bad-app",
+    "scan:good": "node src/cli.js scan examples/good-app",
+    "test": "node --test test/*.test.js"
+  },
+  "version": "0.1.0"
+}
