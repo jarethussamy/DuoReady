@@ -1,0 +1,3 @@
+// Duo build configuration for the good example.
+// This project is compiled with Xcode 27.1, against the iOS 27.1 SDK.
+DUO_TARGET_SDK = 27.1
