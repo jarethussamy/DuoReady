@@ -1,0 +1,24 @@
+name: DuoReady Scan
+description: Scan a React / React Native project for iPhone Duo readiness on iOS 27.1.
+author: DuoReady contributors
+
+inputs:
+  path:
+    description: Path to the React / React Native project to scan
+    required: false
+    default: '.'
+  fail-below:
+    description: Fail the job if the Duo Readiness Score is below this value (the iOS 27.1 hard gate also fails the job)
+    required: false
+    default: '80'
+
+runs:
+  using: composite
+  steps:
+    - name: Run DuoReady scan
+      shell: bash
+      run: node "${{ github.action_path }}/src/cli.js" scan "${{ inputs.path }}" --fail-below "${{ inputs.fail-below }}" --md duoready-report.md
+
+branding:
+  icon: smartphone
+  color: blue
