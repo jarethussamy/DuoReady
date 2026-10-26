@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Step 1 of the Safe-Cover pattern: opt into the full area. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Good Web — Safe-Cover on iPhone Duo</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Step 2: the header background bleeds full width (duo-bleed);
+       its nav links stay in the unobstructed area (duo-safe). -->
+  <header class="site-header duo-bleed">
+    <nav class="duo-safe">
+      <a href="/">Home</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/login">Log in</a>
+    </nav>
+  </header>
+  <main class="container duo-safe">
+    <h1>A page that fits the fold</h1>
+    <p>Fluid from 382 to 951 CSS px, content inset on all four edges,
+       feature detection instead of user-agent sniffing.</p>
+  </main>
+  <script>
+    // Feature detection, never UA sniffing (Apple's advice). The
+    // Device Posture API is a preview in Safari 27.1 — enhancement
+    // only; the layout above works without it.
+    if ('devicePosture' in navigator) {
+      document.body.dataset.posture = navigator.devicePosture.type;
+    }
+  </script>
+</body>
+</html>

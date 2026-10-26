@@ -2,7 +2,7 @@
   "bin": {
     "duoready": "src/cli.js"
   },
-  "description": "Source scanner that audits a React / React Native app for iPhone Duo readiness on iOS 27.1.",
+  "description": "Source scanner that audits a React / React Native app (and its web pages) for iPhone Duo readiness on iOS 27.1 / Safari 27.1.",
   "engines": {
     "node": ">=20"
   },
@@ -19,7 +19,9 @@
   "scripts": {
     "scan:bad": "node src/cli.js scan examples/bad-app",
     "scan:good": "node src/cli.js scan examples/good-app",
+    "scan:bad-web": "node src/cli.js scan examples/bad-web",
+    "scan:good-web": "node src/cli.js scan examples/good-web",
     "test": "node --test test/*.test.js"
   },
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

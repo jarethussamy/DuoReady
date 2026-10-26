@@ -12,6 +12,8 @@ const { scanProject } = require('../src/scanner');
 const ROOT = path.join(__dirname, '..');
 const BAD = path.join(ROOT, 'examples', 'bad-app');
 const GOOD = path.join(ROOT, 'examples', 'good-app');
+const BADWEB = path.join(ROOT, 'examples', 'bad-web');
+const GOODWEB = path.join(ROOT, 'examples', 'good-web');
 const CLI = path.join(ROOT, 'src', 'cli.js');
 
 function check(report, id) {
@@ -20,10 +22,10 @@ function check(report, id) {
   return found;
 }
 
-test('there are exactly 22 checks in 7 groups', () => {
+test('there are exactly 27 checks in 8 groups', () => {
   const report = scanProject(GOOD);
-  assert.strictEqual(report.checks.length, 22);
-  assert.strictEqual(Object.keys(report.groups).length, 7);
+  assert.strictEqual(report.checks.length, 27);
+  assert.strictEqual(Object.keys(report.groups).length, 8);
 });
 
 test('bad-app scores materially lower than good-app', () => {
@@ -74,7 +76,9 @@ test('manual checks are never auto-passed and are excluded from the score', () =
   const report = scanProject(GOOD);
   const manuals = report.checks.filter((c) => c.status === 'manual');
   assert.ok(manuals.length >= 8, `expected at least 8 manual checks, got ${manuals.length}`);
-  assert.strictEqual(report.autoChecks + report.manual, 22);
+  // good-app has no web files, so the 5 Safari checks report 'na' and,
+  // like manual checks, stay out of the score: 14 auto + 8 manual + 5 na = 27.
+  assert.strictEqual(report.autoChecks + report.manual + report.na, 27);
   assert.strictEqual(report.manual, manuals.length);
 });
 
@@ -102,4 +106,48 @@ test('CLI --fail-below exits 1 for a gated, low-scoring project', () => {
   assert.throws(() => {
     execFileSync(process.execPath, [CLI, 'scan', BAD, '--fail-below', '80'], { encoding: 'utf8' });
   });
+});
+
+test('bad-web fails the four-edge insets check, naming every missing edge', () => {
+  const report = scanProject(BADWEB);
+  const insets = check(report, 'safari-four-edge-insets');
+  assert.strictEqual(insets.status, 'fail');
+  // bad-web sets viewport-fit=cover with NO insets — Apple's exact failure
+  // mode — so the message must warn about the side controls and name all
+  // four missing edges.
+  assert.match(insets.message, /side controls/);
+  for (const edge of ['top', 'right', 'bottom', 'left']) {
+    assert.match(insets.message, new RegExp(edge), `message should name missing edge ${edge}`);
+  }
+  // viewport-fit itself is present, so that check passes; the fixed-width
+  // container and the UA sniffing must fail with evidence.
+  assert.strictEqual(check(report, 'safari-viewport-fit').status, 'pass');
+  assert.strictEqual(check(report, 'safari-fluid-range').status, 'fail');
+  assert.ok(check(report, 'safari-fluid-range').evidence.some((e) => e.file === 'styles.css'));
+  assert.strictEqual(check(report, 'safari-no-ua-sniffing').status, 'fail');
+  assert.strictEqual(check(report, 'safari-posture-segments').status, 'manual');
+});
+
+test('good-web passes all Safari auto checks', () => {
+  const report = scanProject(GOODWEB);
+  for (const id of ['safari-viewport-fit', 'safari-four-edge-insets', 'safari-no-ua-sniffing', 'safari-fluid-range']) {
+    assert.strictEqual(check(report, id).status, 'pass', `${id} should pass on good-web`);
+  }
+  assert.strictEqual(check(report, 'safari-posture-segments').status, 'manual');
+  assert.strictEqual(report.na, 0);
+});
+
+test('an RN-only project reports the Safari group as not applicable and excludes it from the score', () => {
+  for (const dir of [BAD, GOOD]) {
+    const report = scanProject(dir);
+    const safari = report.checks.filter((c) => c.group === 'Safari on Duo (Web)');
+    assert.strictEqual(safari.length, 5);
+    assert.ok(safari.every((c) => c.status === 'na'), 'all Safari checks should be na without web files');
+    assert.strictEqual(report.na, 5);
+    // Excluded exactly like manual checks: auto + manual + na = all checks.
+    assert.strictEqual(report.autoChecks + report.manual + report.na, report.checks.length);
+  }
+  // The shipped fixtures keep their scores.
+  assert.strictEqual(scanProject(BAD).score, 0);
+  assert.strictEqual(scanProject(GOOD).score, 100);
 });

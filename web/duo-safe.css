@@ -1,0 +1,130 @@
+/* ==========================================================================
+   DuoReady "Safe-Cover" pattern — duo-safe.css
+   --------------------------------------------------------------------------
+   The fix for cramped web layouts in Safari 27.1 on iPhone Duo.
+
+   THE PROBLEM
+   On the Duo's outer display in portrait (382 CSS px wide — shorter and
+   wider than other iPhones), Safari 27.1 moves the browser and system
+   controls into a side column. Web content does NOT extend behind those
+   controls; Safari fills the strip with the page's background color, so
+   your content is squeezed into what is left.
+
+   THE FIX (two halves — you need both)
+   1. Opt the page into the full area with viewport-fit=cover (see the
+      required meta tag below). This lets backgrounds paint behind the
+      side controls.
+   2. Inset everything that matters with env(safe-area-inset-*) on ALL
+      FOUR edges. Apple's own research (WebKit blog, "WebKit Features for
+      Safari 27.1", Oct 23, 2026) found that many sites set
+      viewport-fit=cover but fail to inset one or more edges, leaving
+      content hidden under the controls. viewport-fit=cover WITHOUT the
+      four insets is the exact failure mode — do not ship half of this.
+
+   THE PATTERN in one sentence:
+   backgrounds bleed, content stays inset.
+   Use .duo-bleed on background-only elements (a header bar whose color
+   should span the full width, edge to edge, including behind the side
+   controls) and .duo-safe on the content inside it, so text, links and
+   buttons never sit under the controls. This split is also the
+   foolproof default DuoReady suggests Apple adopt — see
+   docs/safari-safe-cover.md.
+
+   REQUIREMENT — your HTML head must contain exactly this viewport meta
+   (or an equivalent one that includes viewport-fit=cover):
+
+     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+   NOT REQUIRED for this fix: the Device Posture API and Viewport
+   Segments API. In Safari 27.1 those are a developer preview behind
+   feature flags (Settings > Apps > Safari > Advanced > Feature Flags).
+   Layer them on later as progressive enhancement if you want
+   fold-aware layouts; the Safe-Cover pattern below works in shipping
+   Safari today and degrades to ordinary padding everywhere else,
+   because env() falls back to 0px where there is nothing to avoid.
+
+   Usage: link this file (or copy the rules into your stylesheet), then:
+     <header class="duo-bleed site-header">
+       <nav class="duo-safe">…links…</nav>
+     </header>
+     <main class="duo-safe">…content…</main>
+   ========================================================================== */
+
+/* ---- Safe-area custom properties: one per edge --------------------------
+   Every edge, always. The fallback 0px keeps these harmless on devices
+   and browsers with no controls to avoid. */
+:root {
+  --duo-sat: env(safe-area-inset-top, 0px);
+  --duo-sar: env(safe-area-inset-right, 0px);
+  --duo-sab: env(safe-area-inset-bottom, 0px);
+  --duo-sal: env(safe-area-inset-left, 0px);
+}
+
+/* ---- .duo-safe: content that must never be obstructed -------------------
+   Pads a container on all four edges. max() means you keep at least your
+   design padding (16px here — change it to your own) and gain the
+   safe-area inset wherever the Duo puts controls: the side column on
+   the outer display, the top status area, the bottom bar/home area.
+   Apply it to headers' inner wrappers, main content, footers, fixed
+   bars, drawers — anything with text or interactive elements. */
+.duo-safe {
+  padding-top: max(16px, var(--duo-sat));
+  padding-right: max(16px, var(--duo-sar));
+  padding-bottom: max(16px, var(--duo-sab));
+  padding-left: max(16px, var(--duo-sal));
+}
+
+/* ---- .duo-bleed: backgrounds that should paint the full area ------------
+   For background-only elements: NO padding is added, so with
+   viewport-fit=cover the element's background extends behind the side
+   controls and the page looks intentional instead of letterboxed.
+   Anything readable or tappable inside a .duo-bleed element must itself
+   be wrapped in .duo-safe (or padded with the --duo-sa* variables). */
+.duo-bleed {
+  /* Intentionally empty of padding: this class exists so the split
+     between "paints everywhere" and "stays unobstructed" is explicit
+     in your markup. Size and color the element as you normally would,
+     e.g. width: 100%; background: #0b0b0f; */
+}
+
+/* ---- Example: a fixed header, done right --------------------------------
+   The header's background spans the full width — including behind the
+   Duo's side controls — while its nav links sit inside the unobstructed
+   area on all four edges. This is Apple's own example scenario from the
+   WebKit post, implemented with today's shipping behavior.
+
+   <header class="duo-header duo-bleed">
+     <nav class="duo-safe duo-header-inner">
+       <a href="/">Home</a>
+       <a href="/docs">Docs</a>
+     </nav>
+   </header>
+
+.duo-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #0b0b0f;
+  color: #f5f5f7;
+}
+.duo-header-inner {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+   …and reserve space for the fixed header in your page flow, e.g.
+   body { padding-top: 64px; } — adjusted to your header's height.
+   ------------------------------------------------------------------------ */
+
+/* ---- Optional: fluid across the whole Duo Safari range ------------------
+   Safari on Duo ranges from 382 to 951 CSS px wide (outer portrait 382,
+   outer landscape 594, inner portrait 669, inner landscape 951, two
+   side-by-side inner windows 385 each). Fluid layout — not device
+   checks — is what survives that range. A sane baseline:
+
+   body { margin: 0; }
+   .duo-container { width: 100%; max-width: 960px; margin: 0 auto; }
+
+   Never branch layout on navigator.userAgent: Apple advises feature
+   detection, and the Duo's sizes overlap other devices anyway. */

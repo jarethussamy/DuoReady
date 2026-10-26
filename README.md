@@ -46,20 +46,24 @@ node src/cli.js scan /path/to/your-app --fail-below 80   # CI: exit 1 if below /
 # try the bundled examples
 npm run scan:bad     # examples/bad-app  -> 0/100, Not Badge-Ready
 npm run scan:good    # examples/good-app -> 100/100
+npm run scan:bad-web # examples/bad-web  -> Safari checks fail (cover, no insets)
+npm run scan:good-web # examples/good-web -> Safari checks pass (Safe-Cover)
 
 npm test             # the test suite (node:test, no dependencies)
 ```
 
 The scanner walks `.js/.jsx/.ts/.tsx/.swift` sources plus config files
-(`Podfile`, `app.json`, `*.pbxproj`, `Info.plist`, `*.xcconfig`),
-skipping `node_modules`, `.git`, `Pods`, `.expo`, `dist` and `build`.
+(`Podfile`, `app.json`, `*.pbxproj`, `Info.plist`, `*.xcconfig`), and —
+since v0.2.0 — any `.html`/`.htm`/`.css` web files for the Safari
+checks, skipping `node_modules`, `.git`, `Pods`, `.expo`, `dist` and
+`build`.
 
 ### Sample output (bad-app, abridged)
 
 ```
 DuoReady scan — bad-app
 Files scanned: 5
-Duo Readiness Score: 0/100  (0/14 auto-checks pass, 8 manual)
+Duo Readiness Score: 0/100  (0/14 auto-checks pass, 8 manual, 5 not applicable)
 Verdict: Not Badge-Ready — letterbox risk
 
 Adaptive Layout
@@ -72,12 +76,14 @@ Every failure prints the `file:line` evidence and a concrete fix.
 `--json` gives the same report as machine-readable JSON; `--md` writes
 a Markdown report you can attach to a pull request.
 
-## The 22 checks in 7 groups
+## The 27 checks in 8 groups
 
 The score is the **Duo Readiness Score /100**, computed over the
 auto-checkable checks only. Checks with no honest source signal are
 marked **manual** — they are never auto-passed, and they are excluded
-from the score denominator.
+from the score denominator. Checks that do not apply to a project at
+all — the Safari group on a project with no web files — are marked
+**N/A** and excluded the same way.
 
 | Group | Auto checks | Manual checks |
 | --- | --- | --- |
@@ -88,8 +94,12 @@ from the score denominator.
 | Split View & Multitasking | Two-column layout signal · Not locked to one orientation | Split View tested (two apps / two windows, saved app pairs) |
 | Outer Display | — | Outer-display experience previewed separately · Camera outer-display flows (`CameraCaptureAccessory`) |
 | Performance | Lists virtualized (FlatList) · Memoization signals | Profiled with Instruments on the resize path |
+| Safari on Duo (Web) | Viewport meta declares `viewport-fit=cover` · Safe-area insets on **all four** edges · No user-agent sniffing for layout · Fluid across 382–951 CSS px | Device Posture / Viewport Segments tested with Safari 27.1 feature flags on and off |
 
-That is 14 auto + 8 manual = **22 checks**.
+That is 18 auto + 9 manual = **27 checks**. The Safari group's 5 checks
+apply **only when the project contains HTML/CSS files**; on app-only
+projects they report **N/A** and stay out of the score, so
+`examples/bad-app` still scores 0/100 and `examples/good-app` 100/100.
 
 Some auto checks can also come back *manual for a specific project* —
 for example, the orientation check when no `app.json` / `Info.plist`
@@ -111,6 +121,53 @@ app cannot use the full inner display or earn the badge.
 **A scan never proves badge eligibility.** It reports source signals
 only. Only a real build compiled with Xcode 27.1 and submitted through
 App Store Connect proves it.
+
+## Safari on iPhone Duo (web) — new in v0.2.0
+
+Your app's web pages have a Duo problem of their own. On the outer
+display in portrait — **382 CSS px wide**, shorter and wider than other
+iPhones — Safari 27.1 moves the browser and system controls into a
+**side column**. Web content does not extend behind those controls;
+Safari fills the strip with the page's background color, so content is
+left cramped in what remains. Apple documented this in
+["WebKit Features for Safari 27.1"](https://webkit.org/blog/18486/webkit-features-for-safari-27-1/)
+(Jen Simmons, WebKit blog, Oct 23, 2026); MacRumors covered Apple's
+wish to fix it on
+[Oct 25, 2026](https://www.macrumors.com/2026/10/25/apple-wants-to-fix-safari-on-iphone-duo/).
+
+Apple's candidate mechanism is `viewport-fit=cover` — it lets the page
+paint into the side strip. But Apple's own research found that many
+sites then **fail to inset content on all four edges** with
+`env(safe-area-inset-*)`, leaving content hidden under the controls.
+
+**The fix — DuoReady's "Safe-Cover" pattern** (full guide:
+[`docs/safari-safe-cover.md`](docs/safari-safe-cover.md), drop-in code:
+[`web/duo-safe.css`](web/duo-safe.css)):
+
+1. Add `viewport-fit=cover` to the viewport meta.
+2. **Backgrounds bleed, content stays inset:** background-only
+   elements (`.duo-bleed`) paint the full width including behind the
+   side controls; everything readable or tappable gets `.duo-safe`,
+   which pads all four edges with
+   `max(<design padding>, env(safe-area-inset-*))`.
+3. Never place essential content in the inset zones, stay fluid across
+   the Duo's 382–951 CSS px Safari range, and feature-detect — never
+   UA-sniff.
+
+The scan's 5 Safari checks verify exactly this: `viewport-fit=cover`
+present, insets on **all four** edges, no user-agent layout branching,
+no fixed widths over 382 px, and a manual check for the Device Posture
+/ Viewport Segments preview APIs (Safari 27.1 feature flags). Try them
+on `examples/bad-web` (cover set, zero insets — Apple's failure mode)
+and `examples/good-web` (Safe-Cover applied).
+
+The guide also carries a **"Feedback for Apple"** note: DuoReady's
+suggested foolproof default — split background painting from content
+layout, so backgrounds bleed by default under `viewport-fit=cover`
+while content stays inset until an element opts into bleeding — and
+where to send it (Feedback Assistant, bugs.webkit.org, or Jen Simmons
+on Bluesky/Mastodon). It is a suggestion to echo, not a behavior Apple
+has adopted.
 
 ## Fix code: the `react/` folder
 
@@ -161,16 +218,23 @@ own app's repo.
   by testing.
 - Heuristics can misfire on unusual codebases. The evidence lines are
   printed so you can judge each finding yourself.
+- The Safari checks audit **source code only**, like everything here;
+  final proof is rendering on the Duo simulator (Xcode 27.1 Device Hub)
+  or a real device.
 
 ## Layout of this repo
 
 ```
 src/cli.js        the duoready CLI (scan, --json, --md, --fail-below)
 src/scanner.js    file walking, detectors, scoring, Markdown report
-src/checks.js     the 22 checks / 7 groups, with a fix for each
+src/checks.js     the 27 checks / 8 groups, with a fix for each
 react/            useDuoLayout + DuoSplitView + notes for your app
+web/duo-safe.css  the Safe-Cover pattern for Safari on Duo (drop-in CSS)
+docs/             safari-safe-cover.md — the full Safari fix guide
 examples/bad-app  a project full of Duo anti-patterns (scores 0/100)
 examples/good-app an adapted project (scores 100/100)
+examples/bad-web  viewport-fit=cover with no insets (Safari checks fail)
+examples/good-web the Safe-Cover pattern applied (Safari checks pass)
 test/             node:test suite — run `npm test`
 action.yml        composite GitHub Action
 ```

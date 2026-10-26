@@ -22,10 +22,10 @@ through App Store Connect proves Optimized for iPhone Duo badge eligibility.`);
 }
 
 function printConsole(r) {
-  const icon = { pass: '✓ PASS  ', fail: '✗ FAIL  ', manual: '? MANUAL' };
+  const icon = { pass: '✓ PASS  ', fail: '✗ FAIL  ', manual: '? MANUAL', na: '– N/A   ' };
   console.log(`\nDuoReady scan — ${r.projectName}`);
   console.log(`Files scanned: ${r.filesScanned}`);
-  console.log(`Duo Readiness Score: ${r.score}/100  (${r.passed}/${r.autoChecks} auto-checks pass, ${r.manual} manual)`);
+  console.log(`Duo Readiness Score: ${r.score}/100  (${r.passed}/${r.autoChecks} auto-checks pass, ${r.manual} manual${r.na ? `, ${r.na} not applicable` : ''})`);
   console.log(`Verdict: ${r.verdict}`);
   console.log(`Hard gate: ${r.hardGate.message}`);
   for (const group of GROUPS) {

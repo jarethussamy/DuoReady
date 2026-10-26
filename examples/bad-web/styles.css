@@ -1,0 +1,31 @@
+/* Bad Web styles — the Duo anti-patterns, on purpose:
+   - viewport-fit=cover is set in index.html, but there is not a single
+     env(safe-area-inset-*) in this file, on any edge.
+   - The layout container is a fixed desktop width, far wider than the
+     Duo's narrowest Safari viewport (382 CSS px). */
+
+body {
+  margin: 0;
+  font-family: sans-serif;
+}
+
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #222;
+  color: #fff;
+  padding: 12px;
+}
+
+.site-header nav a {
+  color: #fff;
+  margin-right: 16px;
+}
+
+.container {
+  width: 1024px;
+  margin: 0 auto;
+  padding-top: 72px;
+}

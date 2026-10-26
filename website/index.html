@@ -133,6 +133,7 @@ footer a{color:var(--muted)}
       <a href="#demo">Demo</a>
       <a href="#how">How it works</a>
       <a href="#checks">Checks</a>
+      <a href="#safari">Safari</a>
       <a href="#limits">Honest limits</a>
       <a class="btn btn-primary" href="https://github.com/jarethussamy/DuoReady">Get it on GitHub</a>
     </nav>
@@ -143,7 +144,7 @@ footer a{color:var(--muted)}
   <div class="wrap hero">
     <p class="eyebrow">Free &middot; Open source (MIT) &middot; Zero dependencies</p>
     <h1>Is your app ready<br>for <span class="grad">iPhone Duo?</span></h1>
-    <p class="lede">DuoReady scans your React / React Native source, runs 22 iPhone Duo readiness checks, and scores your app out of 100 — with the exact file and line behind every failure.</p>
+    <p class="lede">DuoReady scans your React / React Native source, runs 27 iPhone Duo readiness checks, and scores your app out of 100 — with the exact file and line behind every failure.</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="https://github.com/jarethussamy/DuoReady">Get it on GitHub</a>
       <a class="btn btn-ghost" href="#demo">See it score two apps</a>
@@ -190,7 +191,7 @@ footer a{color:var(--muted)}
         </div>
         <ul class="evidence" id="evidenceList"></ul>
       </div>
-      <p class="fold-line">Scores are over the 14 automatic checks. The other 8 checks are manual by design — see below.</p>
+      <p class="fold-line">Scores are over the automatic checks that apply — 14 for these apps. 9 checks are manual by design, and the 5 web checks apply only to projects with HTML/CSS — see below.</p>
     </div>
   </section>
 
@@ -236,8 +237,8 @@ footer a{color:var(--muted)}
   <section id="checks" style="padding-top:0">
     <div class="wrap">
       <div class="sec-head">
-        <h2>22 checks, 7 groups</h2>
-        <p>14 checks are automatic — judged from your source, with evidence. 8 are flagged <b>manual</b> and left out of the score's denominator, because no scanner can honestly judge them from code alone: hinge behavior, playback and payment continuity across a fold, Split View testing, and Instruments profiling are yours to test.</p>
+        <h2>27 checks, 8 groups</h2>
+        <p>18 checks are automatic — judged from your source, with evidence. 9 are flagged <b>manual</b> and left out of the score's denominator, because no scanner can honestly judge them from code alone: hinge behavior, playback and payment continuity across a fold, Split View testing, and Instruments profiling are yours to test. The Safari group applies only when a project ships HTML/CSS; otherwise its checks report N/A and stay out of the score.</p>
       </div>
       <div class="groups">
         <div class="group"><h3>SDK &amp; Build <span class="count">auto + gate</span></h3><p>iOS 27.1 SDK / Xcode 27.1 signal, deployment target, Hermes, and New Architecture readiness.</p></div>
@@ -247,9 +248,33 @@ footer a{color:var(--muted)}
         <div class="group"><h3>Split View &amp; Multitasking <span class="count">auto + manual</span></h3><p>Your layout must hold up when your window is half the inner screen, next to another app.</p></div>
         <div class="group"><h3>Outer Display <span class="count">auto + manual</span></h3><p>The 5.4&Prime; outer screen is a real surface — content and camera previews that use it, checked and tested.</p></div>
         <div class="group"><h3>Performance for A20 Pro <span class="count">auto + manual</span></h3><p>Rendering and resize cost on the new chip, with Instruments profiling flagged manual.</p></div>
+        <div class="group"><h3>Safari on Duo (Web) <span class="count">auto + manual</span></h3><p>For web pages: <code>viewport-fit=cover</code>, safe-area insets on <b>all four edges</b>, no user-agent sniffing, fluid across 382–951 CSS px. Ships with the fix — <code>web/duo-safe.css</code>.</p></div>
         <div class="group"><h3>Drop-in React code <span class="count">included</span></h3><p><code>react/useDuoLayout.ts</code> and <code>react/DuoSplitView.tsx</code> ship in the repo, ready to copy into your app.</p></div>
       </div>
       <div class="gate"><b>The hard gate:</b> if your project shows no iOS 27.1 SDK / Xcode 27.1 signal, the verdict is capped at <b>&ldquo;Not Badge-Ready — letterbox risk&rdquo;</b> regardless of score. A high score on an old SDK still letterboxes.</div>
+    </div>
+  </section>
+
+  <section id="safari" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>New in v0.2.0: Safari on Duo</h2>
+        <p>Apps aren't the only thing Duo squeezes. On the outer display — 382 CSS px wide in portrait — Safari 27.1 parks its controls in a side column and keeps web content out of that strip, filling it with your page's background color instead. Pages come out cramped.</p>
+      </div>
+      <div class="duo-note">
+        Apple's own write-up, <a href="https://webkit.org/blog/18486/webkit-features-for-safari-27-1/">WebKit Features for Safari 27.1</a>, names both the mechanism and the trap: <b><code>viewport-fit=cover</code></b> lets a page paint beside the controls — but Apple's research found many sites then fail to inset their content with <b><code>env(safe-area-inset-*)</code></b> on all four edges, leaving text and buttons hidden under the controls. <a href="https://www.macrumors.com/2026/10/25/apple-wants-to-fix-safari-on-iphone-duo/">MacRumors covered</a> Apple's search for a more foolproof default.
+      </div>
+      <div class="duo-note">
+        DuoReady's answer is the <b>Safe-Cover pattern — backgrounds bleed, content stays inset.</b> It ships as drop-in, dependency-free CSS (<code>web/duo-safe.css</code> in the repo), a full guide (<code>docs/safari-safe-cover.md</code>), and five new scanner checks that catch exactly this failure in your HTML/CSS — including the headline one: <b>insets missing on any of the four edges</b>.
+      </div>
+      <div class="codeblock" style="margin-top:18px">
+        <div class="bar"><span>The pattern — a fixed header, done right</span></div>
+        <pre>&lt;header class="duo-bleed"&gt;             &lt;!-- background paints the full width,
+                                              even behind the side controls --&gt;
+  &lt;nav class="duo-safe"&gt;…links…&lt;/nav&gt;  &lt;!-- links stay in the unobstructed area,
+                                              inset on all four edges --&gt;
+&lt;/header&gt;</pre>
+      </div>
     </div>
   </section>
 
@@ -286,8 +311,9 @@ node src/cli.js scan /path/to/your-app --fail-below 80</pre>
         <li><b>A scan is not proof of the badge.</b> It reads source signals. Only a real build with Xcode 27.1, submitted through App Store Connect, earns &ldquo;Optimized for iPhone Duo.&rdquo;</li>
         <li><b>It does not compile, run Xcode, run the Duo simulator, or submit to Apple.</b> Those steps are still yours, in Device Hub and App Store Connect.</li>
         <li><b>You still need a Mac with Xcode 27.1 and an Apple Developer account</b> to build and ship a Duo-ready app.</li>
-        <li><b>It's React-first.</b> It also reads Swift, Podfile, and project-file signals, so a pure-native Swift app gets a partial audit — not the full 22-check picture.</li>
-        <li><b>8 of the 22 checks are manual on purpose.</b> They're excluded from the score rather than guessed at.</li>
+        <li><b>It's React-first.</b> It also reads Swift, Podfile, and project-file signals, so a pure-native Swift app gets a partial audit — not the full 27-check picture.</li>
+        <li><b>9 of the 27 checks are manual on purpose.</b> They're excluded from the score rather than guessed at.</li>
+        <li><b>The Safari checks audit source, not rendering.</b> They confirm the Safe-Cover signals are present; only the Duo simulator in Xcode 27.1 or a real device proves a page isn't cramped.</li>
       </ul>
     </div>
   </section>

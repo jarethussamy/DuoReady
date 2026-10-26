@@ -5,6 +5,7 @@ const path = require('node:path');
 const { GROUPS, CHECKS } = require('./checks');
 
 const SOURCE_EXTS = new Set(['.js', '.jsx', '.ts', '.tsx', '.swift']);
+const WEB_EXTS = new Set(['.html', '.htm', '.css']);
 const SKIP_DIRS = new Set(['node_modules', '.git', 'Pods', '.expo', 'dist', 'build', 'vendor', '.next']);
 
 function isConfigFile(name) {
@@ -31,8 +32,8 @@ function collectFiles(root) {
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name)) walk(full);
       } else if (entry.isFile()) {
-        const ext = path.extname(entry.name);
-        if (SOURCE_EXTS.has(ext) || isConfigFile(entry.name)) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (SOURCE_EXTS.has(ext) || WEB_EXTS.has(ext) || isConfigFile(entry.name)) {
           let text = '';
           try {
             text = fs.readFileSync(full, 'utf8');
@@ -42,7 +43,7 @@ function collectFiles(root) {
           out.push({
             rel: path.relative(root, full).split(path.sep).join('/'),
             name: entry.name,
-            kind: isConfigFile(entry.name) ? 'config' : 'source',
+            kind: isConfigFile(entry.name) ? 'config' : (WEB_EXTS.has(ext) ? 'web' : 'source'),
             text,
             lines: text.split(/\r?\n/),
           });
@@ -86,7 +87,8 @@ function scanProject(rootInput) {
   const files = collectFiles(root);
   const sources = files.filter((f) => f.kind === 'source');
   const configs = files.filter((f) => f.kind === 'config');
-  const all = files;
+  const webs = files.filter((f) => f.kind === 'web');
+  const all = files.filter((f) => f.kind !== 'web');
 
   const byId = new Map(CHECKS.map((c) => [c.id, c]));
   const out = [];
@@ -223,6 +225,106 @@ function scanProject(rootInput) {
     memoEv.length ? 'Memoization signals found.' : 'No React.memo / useMemo / useCallback signals found.', memoEv);
   push('instruments-profiling', 'manual', 'Manual: profile launch and fold/unfold transitions with Instruments.', []);
 
+  // ---- Safari on Duo (Web) -------------------------------------------------
+  // This group only applies when the project ships web files (HTML/CSS).
+  // Without them the checks are reported 'na' (not applicable) and, like
+  // manual checks, are excluded from the score denominator.
+  const htmlFiles = webs.filter((f) => /\.html?$/i.test(f.name));
+  const cssFiles = webs.filter((f) => /\.css$/i.test(f.name));
+  const hasWeb = webs.length > 0;
+  const naMsg = 'Not applicable: this project contains no HTML/CSS web files, so the Safari on Duo (Web) checks do not apply.';
+
+  // safari-viewport-fit: a viewport meta declaring viewport-fit=cover.
+  const viewportFitEv = findEvidence(htmlFiles, /<meta[^>]*name\s*=\s*["']viewport["'][^>]*viewport-fit\s*=\s*["']?cover/i);
+  const viewportFit = viewportFitEv.length > 0;
+  if (!hasWeb) {
+    push('safari-viewport-fit', 'na', naMsg, []);
+  } else {
+    push('safari-viewport-fit', viewportFit ? 'pass' : 'fail',
+      viewportFit
+        ? 'A viewport meta with viewport-fit=cover was found, so the page can paint beside the Duo outer display\'s side controls.'
+        : 'No viewport meta with viewport-fit=cover found in any HTML file. On the Duo outer display (382 CSS px wide) Safari keeps content in a narrower strip and the page background fills the rest.',
+      viewportFitEv);
+  }
+
+  // safari-four-edge-insets: env(safe-area-inset-*) for all four edges.
+  const EDGES = ['top', 'right', 'bottom', 'left'];
+  const edgesFound = {};
+  const insetEv = [];
+  for (const edge of EDGES) {
+    const ev = findEvidence(webs, new RegExp(`env\\(\\s*safe-area-inset-${edge}\\b`, 'i'));
+    edgesFound[edge] = ev.length > 0;
+    insetEv.push(...ev.slice(0, 2));
+  }
+  const missingEdges = EDGES.filter((e) => !edgesFound[e]);
+  if (!hasWeb) {
+    push('safari-four-edge-insets', 'na', naMsg, []);
+  } else if (missingEdges.length === 0) {
+    push('safari-four-edge-insets', 'pass',
+      'env(safe-area-inset-*) is used for all four edges (top, right, bottom, left), so content stays clear of the Duo\'s side controls and bars.',
+      insetEv);
+  } else if (insetEv.length === 0 && viewportFit) {
+    push('safari-four-edge-insets', 'fail',
+      'viewport-fit=cover is set but NO safe-area insets are used at all: page content will extend under the Duo\'s side controls and can be hidden there. This is the exact failure mode Apple\'s research found. Missing edges: top, right, bottom, left.',
+      []);
+  } else {
+    push('safari-four-edge-insets', 'fail',
+      `Safe-area insets are missing for ${missingEdges.length} of 4 edges — missing: ${missingEdges.join(', ')}. Content on those edges can be hidden under the Duo's side controls or browser bars.`,
+      insetEv);
+  }
+
+  // safari-no-ua-sniffing: conservative heuristic — flag only lines that
+  // BOTH read navigator.userAgent AND test it against a device/browser
+  // token on the same line (the classic layout-branch pattern). Merely
+  // reading the UA (analytics, support strings) is not flagged.
+  const uaEv = findEvidence([...sources, ...htmlFiles], (line) => {
+    if (!/navigator\.userAgent/.test(line)) return false;
+    const deviceTest = /(?:\.test\s*\(|\.match\s*\(|\.includes\s*\(|===|!==|==|!=)/.test(line) &&
+      /(iPhone|iPad|iPod|Android|Mobile|Windows Phone|Macintosh|SamsungBrowser|CriOS|FxiOS)/.test(line);
+    const literalTest = /\/[^/\n]*(iPhone|iPad|Android|Mobile)[^/\n]*\/\s*\.\s*test\s*\(\s*navigator\.userAgent/.test(line);
+    return deviceTest || literalTest;
+  });
+  if (!hasWeb) {
+    push('safari-no-ua-sniffing', 'na', naMsg, []);
+  } else {
+    push('safari-no-ua-sniffing', uaEv.length ? 'fail' : 'pass',
+      uaEv.length
+        ? 'User-agent sniffing for device/layout branching found. Apple advises feature detection instead of UA checks.'
+        : 'No user-agent device/layout branching found (heuristic: navigator.userAgent tested against device names on one line).',
+      uaEv);
+  }
+
+  // safari-fluid-range: signal only, not proof — flag bare `width: Npx`
+  // declarations wider than 382px (the narrowest Duo Safari viewport) in
+  // CSS. max-width/min-width are the fluid tools and are not flagged.
+  const fluidEv = [];
+  for (const file of cssFiles) {
+    file.lines.forEach((lineText, i) => {
+      const re = /(?:^|[;{])\s*width\s*:\s*(\d+(?:\.\d+)?)px/g;
+      let m;
+      while ((m = re.exec(lineText)) !== null) {
+        if (parseFloat(m[1]) > 382) {
+          fluidEv.push({ file: file.rel, line: i + 1, text: lineText.trim().slice(0, 160) });
+        }
+      }
+    });
+  }
+  if (!hasWeb) {
+    push('safari-fluid-range', 'na', naMsg, []);
+  } else {
+    push('safari-fluid-range', fluidEv.length ? 'fail' : 'pass',
+      fluidEv.length
+        ? 'Fixed pixel widths wider than 382px (the narrowest Duo Safari viewport) found in CSS — a signal the layout is not fluid across the 382–951 CSS px Duo range.'
+        : 'No fixed pixel widths wider than 382px found in CSS (signal only — fluidity still needs a real resize test).',
+      fluidEv);
+  }
+
+  if (!hasWeb) {
+    push('safari-posture-segments', 'na', naMsg, []);
+  } else {
+    push('safari-posture-segments', 'manual', 'Manual: in Safari 27.1 on the Duo, test with the Device Posture and Viewport Segments feature flags (Settings > Apps > Safari > Advanced > Feature Flags) ON for the enhanced layout, then OFF to confirm the fluid CSS + safe-area fallback still works.', []);
+  }
+
   // ---- Scoring -------------------------------------------------------------
   const auto = out.filter((c) => c.status === 'pass' || c.status === 'fail');
   const passed = auto.filter((c) => c.status === 'pass').length;
@@ -244,7 +346,7 @@ function scanProject(rootInput) {
 
   return {
     tool: 'duoready',
-    version: '0.1.0',
+    version: '0.2.0',
     project: root,
     projectName: path.basename(root),
     filesScanned: files.length,
@@ -253,6 +355,7 @@ function scanProject(rootInput) {
     passed,
     failed: auto.length - passed,
     manual: out.filter((c) => c.status === 'manual').length,
+    na: out.filter((c) => c.status === 'na').length,
     hardGate: {
       check: 'sdk-ios-27-1',
       failed: hardGateFailed,
@@ -268,11 +371,11 @@ function scanProject(rootInput) {
 }
 
 function toMarkdown(r) {
-  const icon = { pass: 'PASS', fail: 'FAIL', manual: 'MANUAL' };
+  const icon = { pass: 'PASS', fail: 'FAIL', manual: 'MANUAL', na: 'N/A' };
   const lines = [];
   lines.push(`# DuoReady scan — ${r.projectName}`);
   lines.push('');
-  lines.push(`**Duo Readiness Score: ${r.score}/100** (over ${r.autoChecks} auto-checkable checks: ${r.passed} pass, ${r.failed} fail, ${r.manual} manual)`);
+  lines.push(`**Duo Readiness Score: ${r.score}/100** (over ${r.autoChecks} auto-checkable checks: ${r.passed} pass, ${r.failed} fail, ${r.manual} manual${r.na ? `, ${r.na} not applicable` : ''})`);
   lines.push('');
   lines.push(`**Verdict: ${r.verdict}**`);
   lines.push('');

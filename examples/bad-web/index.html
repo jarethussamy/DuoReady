@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- The exact failure mode from Apple's research: viewport-fit=cover is
+     set, so the page extends behind the Duo outer display's side
+     controls — but NO safe-area insets are used anywhere, so content
+     can be hidden under those controls. See styles.css. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bad Web — cramped on iPhone Duo</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav>
+      <a href="/">Home</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/login">Log in</a>
+    </nav>
+  </header>
+  <main class="container">
+    <h1>A page that fights the fold</h1>
+    <p>This page opts into the full screen area but never insets its
+       content, and its layout is a fixed desktop width — so on the Duo
+       outer display (382 CSS px wide) the nav can slide under the side
+       controls and the content overflows.</p>
+  </main>
+  <script>
+    // Layout decided by user-agent sniffing — Apple advises feature
+    // detection instead.
+    if (/iPhone/.test(navigator.userAgent)) {
+      document.body.classList.add('phone-layout');
+    }
+  </script>
+</body>
+</html>
