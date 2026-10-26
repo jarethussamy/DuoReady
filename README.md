@@ -167,7 +167,8 @@ layout, so backgrounds bleed by default under `viewport-fit=cover`
 while content stays inset until an element opts into bleeding — and
 where to send it (Feedback Assistant, bugs.webkit.org, or Jen Simmons
 on Bluesky/Mastodon). It is a suggestion to echo, not a behavior Apple
-has adopted.
+has adopted. Ready-to-send copy lives in [`FEEDBACK.md`](FEEDBACK.md) —
+file it in about two minutes and help move the default.
 
 ## Fix code: the `react/` folder
 
